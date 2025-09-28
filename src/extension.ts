@@ -8,33 +8,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     async function scanForBunDebugger() {
         return new Promise<Array<{host: string, port: number}>>((resolve) => {
-            const commonPorts = [9229, 6499, 8080, 3000, 5000, 8000, 9999];
-            const foundProcesses: Array<{host: string, port: number}> = [];
-            
-            let remaining = commonPorts.length;
-            
-            for (const port of commonPorts) {
-                cp.exec(`lsof -i :${port} | grep LISTEN`, (error, stdout) => {
-                    remaining--;
+            cp.exec(`lsof -i -P -n | grep bun | grep LISTEN`, (error, stdout) => {
+                const foundProcesses: Array<{host: string, port: number}> = [];
+                
+                if (!error && stdout) {
+                    const lines = stdout.split('\n').filter(line => line.trim());
                     
-                    if (!error && stdout.includes('bun')) {
-                        console.log(`🎯 Found bun process on port ${port}`);
-                        foundProcesses.push({ host: '127.0.0.1', port });
+                    for (const line of lines) {
+                        const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
+                        if (portMatch) {
+                            const port = parseInt(portMatch[1]);
+                            console.log(`🎯 Found bun process on port ${port}`);
+                            foundProcesses.push({ host: '127.0.0.1', port });
+                        }
                     }
-                    
-                    if (remaining === 0) {
-                        resolve(foundProcesses);
-                    }
-                });
-            }
-            
-            // 安全回调，避免永久等待
-            setTimeout(() => {
-                if (remaining > 0) {
-                    console.log('⏰ Port scan timeout');
-                    resolve(foundProcesses);
                 }
-            }, 1000);
+                
+                resolve(foundProcesses);
+            });
         });
     }
 
