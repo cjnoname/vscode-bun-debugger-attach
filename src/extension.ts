@@ -7,32 +7,8 @@ const processCache = new Map<string, { port: number, lastSeen: number }>();
 let isScanning = false;
 let lastScanTime = 0;
 
-// 全局端口锁映射 - 防止多个VS Code窗口attach同一端口
-const globalPortLocks = new Map<number, string>();
-
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Bun Auto-Attach Active');
-
-    // 获取当前工作区唯一标识
-    const workspaceId = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || `vscode-${Date.now()}-${Math.random()}`;
-
-    // 端口锁管理函数
-    function canClaimPort(port: number): boolean {
-        const currentOwner = globalPortLocks.get(port);
-        return !currentOwner || currentOwner === workspaceId;
-    }
-
-    function claimPort(port: number): boolean {
-        if (!canClaimPort(port)) return false;
-        globalPortLocks.set(port, workspaceId);
-        return true;
-    }
-
-    function releasePort(port: number): void {
-        if (globalPortLocks.get(port) === workspaceId) {
-            globalPortLocks.delete(port);
-        }
-    }
 
     async function getCurrentWindowTerminalPids(): Promise<number[]> {
         const processIds: number[] = [];
@@ -202,19 +178,10 @@ export function activate(context: vscode.ExtensionContext) {
                         activeAttachments++;
                         
                         try {
-                            // 工作区锁检查 - 核心防跨窗口逻辑
-                            if (!claimPort(proc.port)) {
-                                console.log(`🔒 Port ${proc.port} already claimed by another workspace`);
-                                return;
-                            }
-                            
                             const isBunDebugger = await checkBunDebugger(proc.host, proc.port);
-                            if (!isBunDebugger) {
-                                releasePort(proc.port);
-                                return;
-                            }
+                            if (!isBunDebugger) return;
                             
-                            console.log(`🔗 Attaching to Bun at ${key} (workspace: ${workspaceId})`);
+                            console.log(`🔗 Attaching to Bun at ${key}`);
                             
                             const attachPromise = vscode.debug.startDebugging(undefined, {
                                 type: 'bun',
@@ -232,13 +199,11 @@ export function activate(context: vscode.ExtensionContext) {
                             
                             if (success) {
                                 attachedSessions.add(key);
-                                console.log(`✅ Attached to ${key}`);
+                                console.log(`✅ Attached to ${key} in workspace: ${vscode.workspace.name || 'current'}`);
                             } else {
-                                releasePort(proc.port);
                                 console.log(`⏰ Timeout attaching to ${key}`);
                             }
                         } catch (attachError) {
-                            releasePort(proc.port);
                             console.log(`❌ Error attaching to ${key}:`, (attachError as Error).message);
                         } finally {
                             activeAttachments--;
@@ -259,8 +224,6 @@ export function activate(context: vscode.ExtensionContext) {
         if (match) {
             const key = match[1];
             attachedSessions.delete(key);
-            const port = parseInt(key.split(':')[1]);
-            if (!isNaN(port)) releasePort(port);
             console.log(`🔄 Detached from ${key}`);
         }
     });
@@ -268,11 +231,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => {
         clearInterval(interval);
         if (debounceTimer) clearTimeout(debounceTimer);
-        // 清理我们占用的所有端口锁
-        for (const key of attachedSessions) {
-            const port = parseInt(key.split(':')[1]);
-            if (!isNaN(port)) releasePort(port);
-        }
     }});
 }
 
