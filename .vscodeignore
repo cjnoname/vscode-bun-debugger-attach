@@ -1,0 +1,13 @@
+vscode-bun-debugger-attach
+.vscodeignore
+node_modules
+out
+*.ts
+*.js
+*.map
+*.json
+*.md
+.vscode
+.DS_Store
+npm-debug.log
+yarn-error.log

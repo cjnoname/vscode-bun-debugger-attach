@@ -1,0 +1,56 @@
+{
+  "name": "vscode-bun-debugger-attach",
+  "displayName": "Bun Debugger Attach",
+  "description": "Automatically attaches debugger to Bun processes running with --inspect-wait",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chengjia/vscode-bun-debugger-attach.git"
+  },
+  "keywords": ["bun", "debugger", "auto-attach", "typescript", "javascript"],
+  "categories": ["Debuggers", "Other"],
+  "publisher": "CJ",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "bun",
+        "label": "Bun",
+        "languages": ["javascript", "typescript"],
+        "configurationAttributes": {
+          "attach": {
+            "required": ["url"],
+            "properties": {
+              "url": {
+                "type": "string",
+                "default": "ws://127.0.0.1:9229/debugger"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "postinstall": "node ./node_modules/vscode/bin/install"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/vscode": "^1.104.0",
+    "typescript": "^4.0.0",
+    "vscode": "^1.1.36"
+  }
+}
