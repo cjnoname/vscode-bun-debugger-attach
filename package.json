@@ -1,17 +1,25 @@
 {
   "name": "vscode-bun-debugger-attach",
-  "displayName": "Bun Debugger Attach",
-  "description": "Automatically attaches debugger to Bun processes running with --inspect-wait",
+  "displayName": "Bun Debugger Auto-Attach",
+  "description": "🚀 Automatically discovers and attaches VS Code debugger to Bun processes on any port - zero configuration required",
   "version": "1.0.0",
+  "publisher": "cjnoname",
+  "author": {
+    "name": "CJ"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chengjia/vscode-bun-debugger-attach.git"
+    "url": "https://github.com/cjnoname/vscode-bun-debugger-attach.git"
   },
-  "keywords": ["bun", "debugger", "auto-attach", "typescript", "javascript"],
+  "bugs": {
+    "url": "https://github.com/cjnoname/vscode-bun-debugger-attach/issues"
+  },
+  "homepage": "https://github.com/cjnoname/vscode-bun-debugger-attach#readme",
+  "keywords": ["bun", "debugger", "auto-attach", "typescript", "javascript", "debug", "inspector", "development"],
   "categories": ["Debuggers", "Other"],
-  "publisher": "CJ",
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.22.0"
   },
   "activationEvents": [
     "onStartupFinished"
@@ -45,7 +53,8 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -watch -p ./tsconfig.json",
-    "postinstall": "node ./node_modules/vscode/bin/install"
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
