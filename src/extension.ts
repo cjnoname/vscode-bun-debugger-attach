@@ -6,53 +6,41 @@ const attachedSessions = new Set<string>();
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Bun Auto-Attach Active');
 
-    let isScanning = false;
-    let scanCount = 0;
-    const portRegex = /:(\d+)\s+\(LISTEN\)/;
-
     async function scanForBunDebugger() {
-        if (isScanning) return [];
-        isScanning = true;
-
         return new Promise<Array<{host: string, port: number}>>((resolve) => {
-            cp.exec(`lsof -i TCP -sTCP:LISTEN -n | awk '/bun.*LISTEN/ {print $9}'`, 
-                { timeout: 300 }, 
-                (error, stdout) => {
-                    isScanning = false;
-                    const foundProcesses: Array<{host: string, port: number}> = [];
+            cp.exec(`lsof -i -P -n | grep bun | grep LISTEN`, (error, stdout) => {
+                const foundProcesses: Array<{host: string, port: number}> = [];
+                
+                if (!error && stdout) {
+                    const lines = stdout.split('\n').filter(line => line.trim());
                     
-                    if (!error && stdout) {
-                        const lines = stdout.split('\n');
-                        for (const line of lines) {
-                            const match = portRegex.exec(line);
-                            if (match) {
-                                const port = parseInt(match[1], 10);
-                                foundProcesses.push({ host: '127.0.0.1', port });
-                            }
+                    for (const line of lines) {
+                        const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
+                        if (portMatch) {
+                            const port = parseInt(portMatch[1]);
+                            console.log(`🎯 Found bun process on port ${port}`);
+                            foundProcesses.push({ host: '127.0.0.1', port });
                         }
                     }
-                    
-                    resolve(foundProcesses);
                 }
-            );
+                
+                resolve(foundProcesses);
+            });
         });
     }
 
+
+
     async function tryAttach() {
-        scanCount++;
-        
-        if (vscode.debug.activeDebugSession && scanCount % 10 !== 0) return;
-        
         const processes = await scanForBunDebugger();
-        if (processes.length === 0) return;
         
         for (const proc of processes) {
             const key = `${proc.host}:${proc.port}`;
             
             if (attachedSessions.has(key)) continue;
+            if (vscode.debug.activeDebugSession?.name.includes(key)) continue;
             
-            attachedSessions.add(key);
-            console.log(`🔗 Attaching to ${key}`);
+            console.log(`🔗 Attaching to Bun at ${key}`);
             
             vscode.debug.startDebugging(undefined, {
                 type: 'bun',
@@ -62,16 +50,16 @@ export function activate(context: vscode.ExtensionContext) {
                 stopOnEntry: false
             }).then(success => {
                 if (success) {
+                    attachedSessions.add(key);
                     console.log(`✅ Attached to ${key}`);
                 } else {
                     console.log(`❌ Failed to attach to ${key}`);
-                    attachedSessions.delete(key);
                 }
             });
         }
     }
 
-    const interval = setInterval(tryAttach, 200);
+    const interval = setInterval(tryAttach, 300);
     
     vscode.debug.onDidTerminateDebugSession(session => {
         const match = session.name.match(/Attach Bun \(([^)]+)\)/);
