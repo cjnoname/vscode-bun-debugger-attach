@@ -2,7 +2,7 @@
   "name": "vscode-bun-debugger-attach",
   "displayName": "Bun Debugger Auto-Attach",
   "description": "Automatically discovers and attaches VS Code debugger to Bun processes on any port - zero configuration required",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "cjnoname",
   "icon": "icon.png",
   "author": {

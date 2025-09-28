@@ -184,9 +184,9 @@ export function activate(context: vscode.ExtensionContext) {
 
         console.log(`🔎 Global scan for bun processes (filtering to ancestors of: ${terminalPids.join(',')})`);
 
-        // Perform lsof to find ALL bun listening ports, we'll filter afterwards.
+        // Perform lsof to find ALL listening ports (no grep) so we can catch cases where bun is launched via nodemon or npm shim (process name might be node or nodemon)
         const lsofPromise = new Promise<string>(resolve => {
-            cp.exec(`lsof -iTCP -sTCP:LISTEN -n -P | grep bun`, { timeout: 800 }, (e, out) => resolve(out || ''));
+            cp.exec(`lsof -iTCP -sTCP:LISTEN -n -P`, { timeout: 800 }, (e, out) => resolve(out || ''));
         });
         const psPromise = new Promise<string>(resolve => {
             cp.exec(`ps -Ao pid,ppid`, { timeout: 800 }, (e, out) => resolve(out || ''));
@@ -214,22 +214,26 @@ export function activate(context: vscode.ExtensionContext) {
         const found: BunCandidate[] = [];
         const seen = new Set<string>();
         lsofOut.split('\n').forEach(line => {
-            if (!line.startsWith('bun') || !line.includes('LISTEN')) return;
+            // Skip header or empty lines
+            if (!line || line.startsWith('COMMAND')) return;
+            if (!line.includes('LISTEN')) return;
             const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
-            const pidMatch = line.match(/^bun\s+(\d+)/);
-            if (!portMatch || !pidMatch) return;
-            const port = parseInt(portMatch[1]);
-            const pid = parseInt(pidMatch[1]);
-            const isDebuggerPort = port === 9229 || port === 6499; // commonly used bun inspector ports
-            if (!isDebuggerPort) return;
-            if (!belongsToCurrentWindow(pid)) return; // NOT from this window's terminals
+            if (!portMatch) return;
+            const port = parseInt(portMatch[1], 10);
+            // Only consider typical bun inspector ports to reduce noise
+            if (port !== 9229 && port !== 6499) return;
+            // Extract pid (second column). Format: COMMAND PID USER ...
+            const pidMatch = line.match(/^\S+\s+(\d+)/);
+            if (!pidMatch) return;
+            const pid = parseInt(pidMatch[1], 10);
+            if (!belongsToCurrentWindow(pid)) return;
             const unique = `${pid}:${port}`;
             if (seen.has(unique)) return;
-            seen.add(unique);
             if (isSuppressed(pid, port)) return; // user manually detached earlier
+            seen.add(unique);
             processCache.set(unique, { pid, port, lastSeen: now });
             found.push({ host: '127.0.0.1', port, pid });
-            console.log(`🎯 Found bun process pid=${pid} port=${port}`);
+            console.log(`🎯 Candidate inspector pid=${pid} port=${port} (line='${line.trim()}')`);
         });
 
         // cleanup stale cache entries
@@ -330,7 +334,7 @@ export function activate(context: vscode.ExtensionContext) {
         const match = session.name.match(/Attach Bun \(([^)]+)\)/);
         if (!match) return;
         const key = match[1]; // host:port
-        const [host, portStr] = key.split(':');
+    const [_host, portStr] = key.split(':');
         const port = parseInt(portStr, 10);
         const pid = sessionPidMap.get(key);
 
