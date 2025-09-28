@@ -4,6 +4,7 @@
   "description": "🚀 Automatically discovers and attaches VS Code debugger to Bun processes on any port - zero configuration required",
   "version": "1.0.0",
   "publisher": "cjnoname",
+  "icon": "icon.png",
   "author": {
     "name": "CJ"
   },
@@ -19,7 +20,7 @@
   "keywords": ["bun", "debugger", "auto-attach", "typescript", "javascript", "debug", "inspector", "development"],
   "categories": ["Debuggers", "Other"],
   "engines": {
-    "vscode": "^1.22.0"
+    "vscode": "^1.104.2"
   },
   "activationEvents": [
     "onStartupFinished"
