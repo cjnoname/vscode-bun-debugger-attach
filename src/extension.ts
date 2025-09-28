@@ -12,20 +12,49 @@ export function activate(context: vscode.ExtensionContext) {
 
     async function getCurrentWindowTerminalPids(): Promise<number[]> {
         const processIds: number[] = [];
-        
         for (const terminal of vscode.window.terminals) {
             try {
-                const processId = await terminal.processId;
-                if (processId) {
-                    processIds.push(processId);
-                    console.log(`📟 Found terminal PID: ${processId} (${terminal.name})`);
-                }
-            } catch {
-            }
+                const pid = await terminal.processId;
+                if (pid) processIds.push(pid);
+            } catch {}
         }
-        
-        console.log(`🔍 Scanning ${processIds.length} terminals in current VS Code window`);
         return processIds;
+    }
+
+    // Collect descendant PIDs for shells to ensure we ONLY touch processes launched from terminals of THIS window
+    let cachedPidTree: number[] = [];
+    let lastPidTreeBuild = 0;
+    async function getTerminalProcessTreePids(): Promise<number[]> {
+        const now = Date.now();
+        // Rebuild at most every 600ms to keep 200ms scan cheap
+        if (now - lastPidTreeBuild < 600 && cachedPidTree.length) return cachedPidTree;
+        const roots = await getCurrentWindowTerminalPids();
+        const visited = new Set<number>(roots);
+        let frontier = roots.slice();
+        const maxDepth = 5;
+        for (let depth = 0; depth < maxDepth && frontier.length; depth++) {
+            try {
+                const listStr = frontier.join(',');
+                const stdout = await new Promise<string>((resolve) => {
+                    if (!listStr) { resolve(''); return; }
+                    cp.exec(`pgrep -P ${listStr}`, { timeout: 300 }, (err, out) => {
+                        if (err || !out) return resolve('');
+                        resolve(out);
+                    });
+                });
+                const childPids = stdout.split(/\s+/).map(s => parseInt(s, 10)).filter(n => !isNaN(n));
+                const fresh: number[] = [];
+                for (const c of childPids) if (!visited.has(c)) { visited.add(c); fresh.push(c); }
+                frontier = fresh;
+            } catch {
+                break;
+            }
+            if (visited.size > 200) break; // safety cap
+        }
+        cachedPidTree = Array.from(visited);
+        lastPidTreeBuild = now;
+        console.log(`🌐 PID tree (window scope) size=${cachedPidTree.length}`);
+        return cachedPidTree;
     }
 
     async function checkBunDebugger(host: string, port: number): Promise<boolean> {
@@ -83,42 +112,32 @@ export function activate(context: vscode.ExtensionContext) {
         lastScanTime = now;
 
         return new Promise<Array<{host: string, port: number}>>((resolve) => {
-            getCurrentWindowTerminalPids().then(terminalPids => {
-                if (terminalPids.length === 0) {
+            getTerminalProcessTreePids().then(pids => {
+                if (pids.length === 0) {
                     isScanning = false;
                     resolve([]);
                     return;
                 }
-                
-                const pidList = terminalPids.join(',');
-                console.log(`🔎 Scanning PIDs: ${pidList} for bun processes`);
-                
-                cp.exec(`lsof -iTCP -sTCP:LISTEN -n -P -p ${pidList} | grep bun`, { timeout: 800 }, (error, stdout) => {
+                const pidList = pids.join(',');
+                cp.exec(`lsof -iTCP -sTCP:LISTEN -n -P -p ${pidList} 2>/dev/null | awk 'NR==1 || /bun/ {print}'`, { timeout: 800 }, (error, stdout) => {
                     isScanning = false;
                     const foundProcesses: Array<{host: string, port: number}> = [];
                     const seenPorts = new Set<number>();
                     
                     if (!error && stdout) {
-                        const lines = stdout.split('\n').filter(line => line.trim());
-                        
+                        const lines = stdout.split('\n').filter(line => line.trim() && line.includes('LISTEN'));
                         for (const line of lines) {
-                            if (line.startsWith('bun') && line.includes('LISTEN')) {
-                                const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
-                                if (portMatch) {
-                                    const port = parseInt(portMatch[1]);
-                                    
-                                    const isDebuggerPort = port === 9229 || (port === 6499);
-                                    if (!isDebuggerPort) continue;
-                                    if (seenPorts.has(port)) continue;
-                                    
-                                    seenPorts.add(port);
-                                    const key = `127.0.0.1:${port}`;
-                                    
-                                    processCache.set(key, { port, lastSeen: now });
-                                    foundProcesses.push({ host: '127.0.0.1', port });
-                                    console.log(`🎯 Found bun process on port ${port}`);
-                                }
-                            }
+                            if (!line.startsWith('bun')) continue;
+                            const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
+                            if (!portMatch) continue;
+                            const port = parseInt(portMatch[1]);
+                            const isDebuggerPort = port === 9229 || (port >= 6000 && port < 7000);
+                            if (!isDebuggerPort) continue;
+                            if (seenPorts.has(port)) continue;
+                            seenPorts.add(port);
+                            const key = `127.0.0.1:${port}`;
+                            processCache.set(key, { port, lastSeen: now });
+                            foundProcesses.push({ host: '127.0.0.1', port });
                         }
                     }
                     
