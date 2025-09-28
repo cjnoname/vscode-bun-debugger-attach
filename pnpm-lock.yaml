@@ -15,10 +15,10 @@ importers:
         specifier: ^1.104.0
         version: 1.104.0
       typescript:
-        specifier: ^4.0.0
-        version: 4.9.5
+        specifier: ^5.9.2
+        version: 5.9.2
       vscode:
-        specifier: ^1.1.36
+        specifier: ^1.1.37
         version: 1.1.37
 
 packages:
@@ -191,9 +191,9 @@ packages:
     resolution: {integrity: sha512-zjaXglF5nnWpsq470jSv6P9DwPvgLkuapYmfDm3JWOm0vkNTVF2tI4UrN2r6jH1qM/uc/WtxYY1hYoA2dOKj5w==}
     engines: {node: '>=4'}
 
-  typescript@4.9.5:
-    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
-    engines: {node: '>=4.2.0'}
+  typescript@5.9.2:
+    resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
   undici-types@7.12.0:
@@ -279,7 +279,7 @@ snapshots:
       fs.realpath: 1.0.0
       inflight: 1.0.6
       inherits: 2.0.4
-      minimatch: 3.0.4
+      minimatch: 3.1.2
       once: 1.4.0
       path-is-absolute: 1.0.1
 
@@ -385,7 +385,7 @@ snapshots:
     dependencies:
       has-flag: 3.0.0
 
-  typescript@4.9.5: {}
+  typescript@5.9.2: {}
 
   undici-types@7.12.0: {}
 
