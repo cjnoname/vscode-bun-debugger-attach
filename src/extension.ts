@@ -10,21 +10,21 @@ let lastScanTime = 0;
 export function activate(context: vscode.ExtensionContext) {
     console.log('🚀 Bun Auto-Attach Active');
 
-    async function getTerminalProcessIds(): Promise<number[]> {
-        const terminals = vscode.window.terminals;
+    async function getCurrentWindowTerminalPids(): Promise<number[]> {
         const processIds: number[] = [];
         
-        for (const terminal of terminals) {
+        for (const terminal of vscode.window.terminals) {
             try {
                 const processId = await terminal.processId;
                 if (processId) {
                     processIds.push(processId);
+                    console.log(`📟 Found terminal PID: ${processId} (${terminal.name})`);
                 }
             } catch {
-                continue;
             }
         }
         
+        console.log(`🔍 Scanning ${processIds.length} terminals in current VS Code window`);
         return processIds;
     }
 
@@ -83,7 +83,7 @@ export function activate(context: vscode.ExtensionContext) {
         lastScanTime = now;
 
         return new Promise<Array<{host: string, port: number}>>((resolve) => {
-            getTerminalProcessIds().then(terminalPids => {
+            getCurrentWindowTerminalPids().then(terminalPids => {
                 if (terminalPids.length === 0) {
                     isScanning = false;
                     resolve([]);
@@ -91,6 +91,8 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 
                 const pidList = terminalPids.join(',');
+                console.log(`🔎 Scanning PIDs: ${pidList} for bun processes`);
+                
                 cp.exec(`lsof -iTCP -sTCP:LISTEN -n -P -p ${pidList} | grep bun`, { timeout: 800 }, (error, stdout) => {
                     isScanning = false;
                     const foundProcesses: Array<{host: string, port: number}> = [];
@@ -178,7 +180,7 @@ export function activate(context: vscode.ExtensionContext) {
                             
                             if (success) {
                                 attachedSessions.add(key);
-                                console.log(`✅ Attached to ${key}`);
+                                console.log(`✅ Attached to ${key} in workspace: ${vscode.workspace.name || 'current'}`);
                             } else {
                                 console.log(`⏰ Timeout attaching to ${key}`);
                             }
